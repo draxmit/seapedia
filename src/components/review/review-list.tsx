@@ -1,6 +1,14 @@
-import type { AppReview } from "@prisma/client";
 import { Stars } from "@/components/ui/star-rating";
 import { EmptyState } from "@/components/ui/empty-state";
+
+/** Public-facing review shape (no internal userId). */
+export type PublicReview = {
+  id: string;
+  name: string;
+  rating: number;
+  comment: string;
+  createdAt: Date;
+};
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -18,7 +26,7 @@ function timeAgo(date: Date): string {
  * Reviews render as plain React text nodes — user content is always
  * escaped, so submitted markup shows up as harmless literal text.
  */
-export function ReviewList({ reviews }: { reviews: AppReview[] }) {
+export function ReviewList({ reviews }: { reviews: PublicReview[] }) {
   if (reviews.length === 0) {
     return (
       <EmptyState

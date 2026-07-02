@@ -14,6 +14,14 @@ export async function listAppReviews(limit = 50) {
     prisma.appReview.findMany({
       orderBy: { createdAt: "desc" },
       take: limit,
+      // Public payload: never expose the internal reviewer userId
+      select: {
+        id: true,
+        name: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+      },
     }),
     prisma.appReview.aggregate({
       _avg: { rating: true },

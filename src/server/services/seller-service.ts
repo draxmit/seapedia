@@ -1,8 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/server/api";
+import { sanitizeText } from "@/server/sanitize";
 import type { z } from "zod";
 import type { productSchema, storeSchema } from "@/server/validation";
+
+/** Sanitize an optional free-text field, preserving undefined. */
+const clean = (value: string | undefined) =>
+  value === undefined ? undefined : sanitizeText(value);
 
 function slugify(name: string): string {
   return name
@@ -57,15 +62,16 @@ export async function createStore(
 ) {
   const current = await prisma.store.findUnique({ where: { ownerId } });
   if (current) throw new ApiError(409, "Kamu sudah memiliki toko");
-  await assertStoreNameFree(input.name);
+  const name = sanitizeText(input.name);
+  await assertStoreNameFree(name);
 
   return prisma.store.create({
     data: {
       ownerId,
-      name: input.name,
-      slug: await uniqueSlug("store", input.name),
-      description: input.description,
-      city: input.city,
+      name,
+      slug: await uniqueSlug("store", name),
+      description: clean(input.description),
+      city: clean(input.city),
     },
   });
 }
@@ -76,18 +82,19 @@ export async function updateStore(
 ) {
   const store = await prisma.store.findUnique({ where: { ownerId } });
   if (!store) throw new ApiError(404, "Kamu belum memiliki toko");
-  await assertStoreNameFree(input.name, ownerId);
+  const name = sanitizeText(input.name);
+  await assertStoreNameFree(name, ownerId);
 
   return prisma.store.update({
     where: { id: store.id },
     data: {
-      name: input.name,
+      name,
       slug:
-        input.name === store.name
+        name === store.name
           ? store.slug
-          : await uniqueSlug("store", input.name, store.id),
-      description: input.description,
-      city: input.city,
+          : await uniqueSlug("store", name, store.id),
+      description: clean(input.description),
+      city: clean(input.city),
     },
   });
 }
@@ -128,16 +135,17 @@ export async function createProduct(
   input: z.infer<typeof productSchema>,
 ) {
   const store = await requireStore(ownerId);
+  const name = sanitizeText(input.name);
   return prisma.product.create({
     data: {
       storeId: store.id,
-      name: input.name,
-      slug: await uniqueSlug("product", input.name),
-      description: input.description,
+      name,
+      slug: await uniqueSlug("product", name),
+      description: sanitizeText(input.description),
       price: input.price,
       stock: input.stock,
       imageUrl: input.imageUrl,
-      category: input.category,
+      category: clean(input.category),
     },
   });
 }
@@ -148,19 +156,20 @@ export async function updateProduct(
   input: z.infer<typeof productSchema>,
 ) {
   const product = await requireOwnProduct(ownerId, productId);
+  const name = sanitizeText(input.name);
   return prisma.product.update({
     where: { id: product.id },
     data: {
-      name: input.name,
+      name,
       slug:
-        input.name === product.name
+        name === product.name
           ? product.slug
-          : await uniqueSlug("product", input.name, product.id),
-      description: input.description,
+          : await uniqueSlug("product", name, product.id),
+      description: sanitizeText(input.description),
       price: input.price,
       stock: input.stock,
       imageUrl: input.imageUrl,
-      category: input.category,
+      category: clean(input.category),
     },
   });
 }
