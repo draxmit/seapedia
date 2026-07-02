@@ -1,0 +1,365 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Users, Roles, Sessions
+// ============================================================
+
+enum RoleName {
+  ADMIN
+  SELLER
+  BUYER
+  DRIVER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  phone        String?
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles        UserRole[]
+  sessions     Session[]
+  store        Store?
+  wallet       Wallet?
+  addresses    Address[]
+  cart         Cart?
+  orders       Order[]       @relation("BuyerOrders")
+  deliveryJobs DeliveryJob[] @relation("DriverJobs")
+  appReviews   AppReview[]
+}
+
+model UserRole {
+  id     String   @id @default(cuid())
+  userId String
+  role   RoleName
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+// Sessions are stored server-side so logout can truly revoke a token.
+// The JWT cookie only carries the session id; every authenticated request
+// is validated against this table (revocation + expiry + active role).
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  activeRole RoleName?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================================
+// Stores & Products (Level 2)
+// ============================================================
+
+model Store {
+  id          String   @id @default(cuid())
+  ownerId     String   @unique
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  city        String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  products Product[]
+  orders   Order[]
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  storeId     String
+  name        String
+  slug        String    @unique
+  description String
+  price       Int // IDR, integer rupiah
+  stock       Int
+  imageUrl    String?
+  category    String?
+  deletedAt   DateTime? // soft delete keeps order history intact
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([storeId])
+  @@index([deletedAt])
+}
+
+// ============================================================
+// Public application reviews (Level 1)
+// ============================================================
+
+model AppReview {
+  id        String   @id @default(cuid())
+  name      String
+  rating    Int // 1..5
+  comment   String
+  userId    String? // optional: filled when a logged-in user submits
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ============================================================
+// Buyer wallet & addresses (Level 3)
+// ============================================================
+
+enum WalletTxType {
+  TOPUP
+  PAYMENT
+  REFUND
+}
+
+model Wallet {
+  id      String @id @default(cuid())
+  userId  String @unique
+  balance Int    @default(0)
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id           String       @id @default(cuid())
+  walletId     String
+  type         WalletTxType
+  amount       Int // positive = money in, negative = money out
+  balanceAfter Int
+  note         String?
+  orderId      String?
+  createdAt    DateTime     @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  label      String
+  recipient  String
+  phone      String
+  street     String
+  city       String
+  province   String
+  postalCode String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================================
+// Cart (Level 3) — single-store rule: storeId locks the cart
+// ============================================================
+
+model Cart {
+  id      String  @id @default(cuid())
+  userId  String  @unique
+  storeId String? // null when cart is empty; set by first item added
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+}
+
+// ============================================================
+// Orders (Level 3+) — statuses mandated by the challenge
+// ============================================================
+
+enum OrderStatus {
+  SEDANG_DIKEMAS
+  MENUNGGU_PENGIRIM
+  SEDANG_DIKIRIM
+  PESANAN_SELESAI
+  DIKEMBALIKAN
+}
+
+enum DeliveryMethod {
+  INSTANT
+  NEXT_DAY
+  REGULAR
+}
+
+enum DiscountKind {
+  VOUCHER
+  PROMO
+}
+
+model Order {
+  id             String         @id @default(cuid())
+  code           String         @unique // human-friendly, e.g. SEA-240702-A1B2
+  buyerId        String
+  storeId        String
+  status         OrderStatus    @default(SEDANG_DIKEMAS)
+  deliveryMethod DeliveryMethod
+
+  // Address snapshot (order history must survive address edits)
+  recipient   String
+  phone       String
+  fullAddress String
+
+  // Financial breakdown (all IDR integers)
+  subtotal       Int
+  discountAmount Int          @default(0)
+  discountCode   String?
+  discountKind   DiscountKind?
+  taxAmount      Int // PPN 12% of (subtotal - discount)
+  deliveryFee    Int
+  total          Int
+
+  // SLA bookkeeping against the simulated clock (virtual day numbers)
+  placedOnDay Int
+  dueOnDay    Int
+
+  // Overdue handling idempotency guards
+  refundedAt     DateTime?
+  incomeCounted  Boolean   @default(false)
+  incomeReversed Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer         User                 @relation("BuyerOrders", fields: [buyerId], references: [id])
+  store         Store                @relation(fields: [storeId], references: [id])
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  deliveryJob   DeliveryJob?
+
+  @@index([buyerId])
+  @@index([storeId])
+  @@index([status])
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  productId    String?
+  productName  String // snapshot
+  productImage String?
+  unitPrice    Int // snapshot
+  quantity     Int
+  lineTotal    Int
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  note      String?
+  actor     String? // e.g. "system", "seller", "driver", "buyer"
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// ============================================================
+// Discounts (Level 4): Voucher = expiry + limited usage,
+// Promo = expiry only
+// ============================================================
+
+enum DiscountValueType {
+  PERCENT
+  FIXED
+}
+
+model Voucher {
+  id          String            @id @default(cuid())
+  code        String            @unique
+  name        String
+  valueType   DiscountValueType
+  value       Int // percent (1-100) or fixed IDR
+  maxDiscount Int? // cap for PERCENT type
+  minSubtotal Int               @default(0)
+  expiresAt   DateTime
+  maxUsage    Int
+  usedCount   Int               @default(0)
+  createdAt   DateTime          @default(now())
+}
+
+model Promo {
+  id          String            @id @default(cuid())
+  code        String            @unique
+  name        String
+  valueType   DiscountValueType
+  value       Int
+  maxDiscount Int?
+  minSubtotal Int               @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime          @default(now())
+}
+
+// ============================================================
+// Delivery jobs (Level 5)
+// ============================================================
+
+enum DeliveryJobStatus {
+  AVAILABLE
+  TAKEN
+  COMPLETED
+  CANCELLED
+}
+
+model DeliveryJob {
+  id          String            @id @default(cuid())
+  orderId     String            @unique
+  driverId    String?
+  status      DeliveryJobStatus @default(AVAILABLE)
+  fee         Int // driver earning = 100% of order delivery fee
+  takenAt     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime          @default(now())
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver User? @relation("DriverJobs", fields: [driverId], references: [id])
+
+  @@index([status])
+  @@index([driverId])
+}
+
+// ============================================================
+// Simulated clock (Level 6): virtual "today" = real today + offset
+// ============================================================
+
+model AppConfig {
+  id               Int @id @default(1)
+  virtualDayOffset Int @default(0)
+}

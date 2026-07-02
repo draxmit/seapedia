@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: seapedia-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: seapedia
+      POSTGRES_PASSWORD: seapedia
+      POSTGRES_DB: seapedia
+    ports:
+      - "5433:5432"
+    volumes:
+      - seapedia_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seapedia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  seapedia_pgdata:
