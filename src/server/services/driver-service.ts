@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/server/api";
 
@@ -45,41 +46,63 @@ export async function getJobDetail(driverId: string, jobId: string) {
 }
 
 /**
- * Take a job. One order has exactly one active driver: the conditional
- * update only succeeds while the job is still AVAILABLE and unassigned,
- * so two drivers can never win the same job.
+ * Take a job. Two invariants are enforced atomically:
+ *  1. one active driver per order — the conditional claim only succeeds while
+ *     the job is still AVAILABLE and unassigned, so two drivers can't win the
+ *     same job;
+ *  2. one active job per driver — the "no existing TAKEN job" check runs
+ *     INSIDE a Serializable transaction, so two concurrent takes of different
+ *     jobs by the same driver conflict and one aborts (rather than both
+ *     slipping past a stale pre-read).
  */
 export async function takeJob(driverId: string, jobId: string) {
-  const active = await getActiveJob(driverId);
-  if (active) {
-    throw new ApiError(400, "Selesaikan job aktifmu dulu sebelum mengambil job baru");
-  }
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const active = await tx.deliveryJob.findFirst({
+          where: { driverId, status: "TAKEN" },
+        });
+        if (active) {
+          throw new ApiError(400, "Selesaikan job aktifmu dulu sebelum mengambil job baru");
+        }
 
-  return prisma.$transaction(async (tx) => {
-    const claimed = await tx.deliveryJob.updateMany({
-      where: { id: jobId, status: "AVAILABLE", driverId: null },
-      data: { driverId, status: "TAKEN", takenAt: new Date() },
-    });
-    if (claimed.count === 0) {
-      throw new ApiError(409, "Job ini sudah diambil driver lain");
-    }
+        const claimed = await tx.deliveryJob.updateMany({
+          where: { id: jobId, status: "AVAILABLE", driverId: null },
+          data: { driverId, status: "TAKEN", takenAt: new Date() },
+        });
+        if (claimed.count === 0) {
+          throw new ApiError(409, "Job ini sudah diambil driver lain");
+        }
 
-    const job = await tx.deliveryJob.findUnique({ where: { id: jobId } });
-    await tx.order.update({
-      where: { id: job!.orderId },
-      data: { status: "SEDANG_DIKIRIM" },
-    });
-    await tx.orderStatusHistory.create({
-      data: {
-        orderId: job!.orderId,
-        status: "SEDANG_DIKIRIM",
-        note: "Driver mengambil pesanan dan sedang dalam perjalanan",
-        actor: "driver",
+        const job = await tx.deliveryJob.findUnique({ where: { id: jobId } });
+        await tx.order.update({
+          where: { id: job!.orderId },
+          data: { status: "SEDANG_DIKIRIM" },
+        });
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId: job!.orderId,
+            status: "SEDANG_DIKIRIM",
+            note: "Driver mengambil pesanan dan sedang dalam perjalanan",
+            actor: "driver",
+          },
+        });
+
+        return tx.deliveryJob.findUnique({ where: { id: jobId }, include: jobInclude });
       },
-    });
-
-    return tx.deliveryJob.findUnique({ where: { id: jobId }, include: jobInclude });
-  });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (err) {
+    // A serialization conflict means another take by this driver committed
+    // first — surface it as the same friendly "finish your active job" error.
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2034"
+    ) {
+      throw new ApiError(409, "Job sedang diproses, silakan coba lagi");
+    }
+    throw err;
+  }
 }
 
 /**
