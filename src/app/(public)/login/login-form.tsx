@@ -11,12 +11,14 @@ export function LoginForm() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setFieldErrors({});
     try {
       const res = await fetch("/api/v1/auth/login", {
         method: "POST",
@@ -25,7 +27,11 @@ export function LoginForm() {
       });
       const body = await res.json();
       if (!res.ok) {
-        setError(body.error ?? "Gagal masuk");
+        if (body.fields && Object.keys(body.fields).length > 0) {
+          setFieldErrors(body.fields);
+        } else {
+          setError(body.error ?? "Gagal masuk");
+        }
         return;
       }
       const next = searchParams.get("next");
@@ -46,24 +52,32 @@ export function LoginForm() {
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      <Field label="Username atau Email" htmlFor="identifier">
+      <Field label="Username atau Email" htmlFor="identifier" error={fieldErrors.identifier}>
         <Input
           id="identifier"
           value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
+          onChange={(e) => {
+            setFieldErrors((x) => (x.identifier ? { ...x, identifier: "" } : x));
+            setIdentifier(e.target.value);
+          }}
           placeholder="cth: budi atau budi@mail.com"
           autoComplete="username"
+          aria-invalid={Boolean(fieldErrors.identifier)}
           required
         />
       </Field>
-      <Field label="Password" htmlFor="password">
+      <Field label="Password" htmlFor="password" error={fieldErrors.password}>
         <Input
           id="password"
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setFieldErrors((x) => (x.password ? { ...x, password: "" } : x));
+            setPassword(e.target.value);
+          }}
           placeholder="••••••••"
           autoComplete="current-password"
+          aria-invalid={Boolean(fieldErrors.password)}
           required
         />
       </Field>

@@ -35,10 +35,20 @@ export function handle<Args extends unknown[]>(
         return jsonError(err.status, err.message);
       }
       if (err instanceof ZodError) {
+        // Per-field messages so the client can show each error inline next to
+        // its input; keep a combined summary string for backward compatibility.
+        const fields: Record<string, string> = {};
+        for (const issue of err.issues) {
+          const key = issue.path.length ? String(issue.path[0]) : "_";
+          if (!fields[key]) fields[key] = issue.message;
+        }
         const details = err.issues
           .map((i) => `${i.path.join(".") || "input"}: ${i.message}`)
           .join("; ");
-        return jsonError(400, `Data tidak valid — ${details}`);
+        return NextResponse.json(
+          { success: false, error: `Data tidak valid — ${details}`, fields },
+          { status: 400 },
+        );
       }
       console.error("Unhandled API error:", err);
       return jsonError(500, "Terjadi kesalahan pada server");

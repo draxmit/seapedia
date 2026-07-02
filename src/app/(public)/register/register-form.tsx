@@ -35,23 +35,28 @@ export function RegisterForm() {
   });
   const [roles, setRoles] = useState<string[]>(["BUYER"]);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   function toggleRole(role: string) {
+    setFieldErrors((e) => ({ ...e, roles: "" }));
     setRoles((prev) =>
       prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
     );
   }
 
   function set<K extends keyof typeof form>(key: K, value: string) {
+    // Clear a field's error as soon as the user edits it
+    setFieldErrors((e) => (e[key] ? { ...e, [key]: "" } : e));
     setForm((f) => ({ ...f, [key]: value }));
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     if (roles.length === 0) {
-      setError("Pilih minimal satu peran");
+      setFieldErrors({ roles: "Pilih minimal satu peran" });
       return;
     }
     setBusy(true);
@@ -63,7 +68,12 @@ export function RegisterForm() {
       });
       const body = await res.json();
       if (!res.ok) {
-        setError(body.error ?? "Gagal mendaftar");
+        // Prefer per-field messages; fall back to a general error otherwise
+        if (body.fields && Object.keys(body.fields).length > 0) {
+          setFieldErrors(body.fields);
+        } else {
+          setError(body.error ?? "Gagal mendaftar");
+        }
         return;
       }
       router.push(body.data.needsRoleSelection ? "/pilih-peran" : "/dashboard");
@@ -78,29 +88,36 @@ export function RegisterForm() {
   return (
     <form onSubmit={submit} className="space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Nama Lengkap" htmlFor="name">
+        <Field label="Nama Lengkap" htmlFor="name" error={fieldErrors.name}>
           <Input
             id="name"
             value={form.name}
             onChange={(e) => set("name", e.target.value)}
             placeholder="cth: Budi Santoso"
             autoComplete="name"
+            aria-invalid={Boolean(fieldErrors.name)}
             required
           />
         </Field>
-        <Field label="Username" htmlFor="username" hint="Huruf, angka, dan underscore">
+        <Field
+          label="Username"
+          htmlFor="username"
+          hint="Huruf, angka, dan underscore"
+          error={fieldErrors.username}
+        >
           <Input
             id="username"
             value={form.username}
             onChange={(e) => set("username", e.target.value)}
             placeholder="cth: budisantoso"
             autoComplete="username"
+            aria-invalid={Boolean(fieldErrors.username)}
             required
           />
         </Field>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Email" htmlFor="email">
+        <Field label="Email" htmlFor="email" error={fieldErrors.email}>
           <Input
             id="email"
             type="email"
@@ -108,10 +125,11 @@ export function RegisterForm() {
             onChange={(e) => set("email", e.target.value)}
             placeholder="cth: budi@mail.com"
             autoComplete="email"
+            aria-invalid={Boolean(fieldErrors.email)}
             required
           />
         </Field>
-        <Field label="No. HP (opsional)" htmlFor="phone">
+        <Field label="No. HP (opsional)" htmlFor="phone" error={fieldErrors.phone}>
           <Input
             id="phone"
             type="tel"
@@ -119,10 +137,16 @@ export function RegisterForm() {
             onChange={(e) => set("phone", e.target.value)}
             placeholder="cth: 081234567890"
             autoComplete="tel"
+            aria-invalid={Boolean(fieldErrors.phone)}
           />
         </Field>
       </div>
-      <Field label="Password" htmlFor="password" hint="Minimal 8 karakter">
+      <Field
+        label="Password"
+        htmlFor="password"
+        hint="Minimal 8 karakter"
+        error={fieldErrors.password}
+      >
         <Input
           id="password"
           type="password"
@@ -130,6 +154,7 @@ export function RegisterForm() {
           onChange={(e) => set("password", e.target.value)}
           placeholder="••••••••"
           autoComplete="new-password"
+          aria-invalid={Boolean(fieldErrors.password)}
           required
         />
       </Field>
@@ -138,6 +163,9 @@ export function RegisterForm() {
         <legend className="mb-2 text-sm font-medium text-ink-700">
           Daftar sebagai <span className="text-ink-400">(boleh lebih dari satu)</span>
         </legend>
+        {fieldErrors.roles && (
+          <p className="mb-2 text-xs font-medium text-red-600">{fieldErrors.roles}</p>
+        )}
         <div className="grid gap-3 sm:grid-cols-3">
           {roleOptions.map((role) => {
             const checked = roles.includes(role.value);
