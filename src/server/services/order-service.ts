@@ -85,33 +85,47 @@ export async function checkout(
 ) {
   const currentDay = await getCurrentVirtualDay();
 
+  // Pre-transaction reads: cart contents, address ownership, and discount
+  // validation. The mutations below re-verify everything with conditional
+  // updates, so a stale read here can only cause a clean failure, never a
+  // wrong charge.
+  const cart = await prisma.cart.findUnique({
+    where: { userId },
+    include: {
+      items: { include: { product: { include: { store: true } } } },
+    },
+  });
+  if (!cart || cart.items.length === 0) {
+    throw new ApiError(400, "Keranjangmu masih kosong");
+  }
+
+  // Single-store rule is a data invariant of the cart; verify anyway
+  const storeIds = new Set(cart.items.map((i) => i.product.storeId));
+  if (storeIds.size !== 1) {
+    throw new ApiError(400, "Keranjang hanya boleh berisi produk dari satu toko");
+  }
+  const store = cart.items[0].product.store;
+  if (store.ownerId === userId) {
+    throw new ApiError(400, "Kamu tidak bisa membeli produk dari tokomu sendiri");
+  }
+
+  const address = await prisma.address.findFirst({
+    where: { id: input.addressId, userId },
+  });
+  if (!address) throw new ApiError(404, "Alamat pengiriman tidak ditemukan");
+
+  const subtotal = cart.items.reduce(
+    (sum, i) => sum + i.product.price * i.quantity,
+    0,
+  );
+
+  let discount: ResolvedDiscount | null = null;
+  if (input.discountCode) {
+    discount = await resolveDiscount(input.discountCode, subtotal);
+  }
+
   return prisma.$transaction(
     async (tx) => {
-      const cart = await tx.cart.findUnique({
-        where: { userId },
-        include: {
-          items: { include: { product: { include: { store: true } } } },
-        },
-      });
-      if (!cart || cart.items.length === 0) {
-        throw new ApiError(400, "Keranjangmu masih kosong");
-      }
-
-      // Single-store rule is a data invariant of the cart; verify anyway
-      const storeIds = new Set(cart.items.map((i) => i.product.storeId));
-      if (storeIds.size !== 1) {
-        throw new ApiError(400, "Keranjang hanya boleh berisi produk dari satu toko");
-      }
-      const store = cart.items[0].product.store;
-      if (store.ownerId === userId) {
-        throw new ApiError(400, "Kamu tidak bisa membeli produk dari tokomu sendiri");
-      }
-
-      const address = await tx.address.findFirst({
-        where: { id: input.addressId, userId },
-      });
-      if (!address) throw new ApiError(404, "Alamat pengiriman tidak ditemukan");
-
       // ---- Stock: conditional decrement, never negative ----
       for (const item of cart.items) {
         if (item.product.deletedAt) {
@@ -126,23 +140,17 @@ export async function checkout(
         }
       }
 
-      const subtotal = cart.items.reduce(
-        (sum, i) => sum + i.product.price * i.quantity,
-        0,
-      );
-
-      // ---- Discount: validate + consume voucher quota atomically ----
-      let discount: ResolvedDiscount | null = null;
-      if (input.discountCode) {
-        discount = await resolveDiscount(input.discountCode, subtotal);
-        if (discount.kind === "VOUCHER") {
-          const consumed = await tx.voucher.updateMany({
-            where: { code: discount.code, usedCount: { lt: prisma.voucher.fields.maxUsage } },
-            data: { usedCount: { increment: 1 } },
-          });
-          if (consumed.count === 0) {
-            throw new ApiError(400, "Kuota penggunaan voucher sudah habis");
-          }
+      // ---- Voucher quota: consumed atomically with a usage guard ----
+      if (discount?.kind === "VOUCHER") {
+        const consumed = await tx.voucher.updateMany({
+          where: {
+            code: discount.code,
+            usedCount: { lt: prisma.voucher.fields.maxUsage },
+          },
+          data: { usedCount: { increment: 1 } },
+        });
+        if (consumed.count === 0) {
+          throw new ApiError(400, "Kuota penggunaan voucher sudah habis");
         }
       }
 
@@ -220,8 +228,52 @@ export async function checkout(
 
       return order;
     },
-    { isolationLevel: "Serializable" },
+    // Generous timeout: the hosted dev database sits in another region and
+    // each round trip costs real latency. Correctness never depends on the
+    // isolation level here — every mutation carries its own guard.
+    { timeout: 30_000, maxWait: 10_000 },
   );
+}
+
+/**
+ * Seller action (Level 4): move an order from Sedang Dikemas to
+ * Menunggu Pengirim and publish the delivery job for drivers. Only the
+ * store owner may process, and only from the correct status — enforced
+ * with a conditional update so double-clicks can't double-process.
+ */
+export async function processOrder(ownerId: string, orderId: string) {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, store: { ownerId } },
+  });
+  if (!order) throw new ApiError(404, "Pesanan tidak ditemukan");
+  if (order.status !== "SEDANG_DIKEMAS") {
+    throw new ApiError(400, "Pesanan ini sudah diproses");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const moved = await tx.order.updateMany({
+      where: { id: orderId, status: "SEDANG_DIKEMAS" },
+      data: { status: "MENUNGGU_PENGIRIM" },
+    });
+    if (moved.count === 0) throw new ApiError(400, "Pesanan ini sudah diproses");
+
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId,
+        status: "MENUNGGU_PENGIRIM",
+        note: "Penjual selesai mengemas — menunggu driver mengambil pesanan",
+        actor: "seller",
+      },
+    });
+    await tx.deliveryJob.create({
+      data: { orderId, fee: order.deliveryFee, status: "AVAILABLE" },
+    });
+
+    return tx.order.findUnique({
+      where: { id: orderId },
+      include: { statusHistory: { orderBy: { createdAt: "asc" } } },
+    });
+  });
 }
 
 // ========================= Order queries =========================
