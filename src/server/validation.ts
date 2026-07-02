@@ -120,6 +120,38 @@ export const checkoutSchema = checkoutQuoteSchema.extend({
   addressId: z.string().min(1, "Alamat pengiriman wajib dipilih"),
 });
 
+const discountBase = {
+  code: z
+    .string()
+    .min(3, "Kode minimal 3 karakter")
+    .max(30, "Kode maksimal 30 karakter")
+    .regex(/^[A-Z0-9]+$/i, "Kode hanya boleh huruf dan angka")
+    .transform((s) => s.toUpperCase()),
+  name: z.string().min(3, "Nama minimal 3 karakter").max(80),
+  valueType: z.enum(["PERCENT", "FIXED"]),
+  value: z.coerce.number().int().min(1, "Nilai minimal 1"),
+  maxDiscount: z.coerce.number().int().min(1000).optional().nullable(),
+  minSubtotal: z.coerce.number().int().min(0).default(0),
+  expiresAt: z.coerce.date(),
+};
+
+export const voucherSchema = z
+  .object({
+    ...discountBase,
+    maxUsage: z.coerce.number().int().min(1, "Kuota minimal 1").max(100000),
+  })
+  .refine((d) => d.valueType !== "PERCENT" || d.value <= 100, {
+    message: "Diskon persen maksimal 100",
+    path: ["value"],
+  });
+
+export const promoSchema = z
+  .object(discountBase)
+  .refine((d) => d.valueType !== "PERCENT" || d.value <= 100, {
+    message: "Diskon persen maksimal 100",
+    path: ["value"],
+  });
+
 export const reviewSchema = z.object({
   name: z.string().min(2, "Nama minimal 2 karakter").max(60, "Nama maksimal 60 karakter"),
   rating: z.coerce

@@ -90,6 +90,59 @@ export async function resolveDiscount(
   throw new ApiError(404, "Kode voucher/promo tidak ditemukan");
 }
 
+// ===================== Admin management =====================
+
+type VoucherInput = {
+  code: string;
+  name: string;
+  valueType: DiscountValueType;
+  value: number;
+  maxDiscount?: number | null;
+  minSubtotal: number;
+  expiresAt: Date;
+  maxUsage: number;
+};
+
+type PromoInput = Omit<VoucherInput, "maxUsage">;
+
+async function assertCodeFree(code: string) {
+  const [v, p] = await Promise.all([
+    prisma.voucher.findUnique({ where: { code } }),
+    prisma.promo.findUnique({ where: { code } }),
+  ]);
+  if (v || p) throw new ApiError(409, "Kode sudah digunakan voucher/promo lain");
+}
+
+export async function createVoucher(input: VoucherInput) {
+  await assertCodeFree(input.code);
+  return prisma.voucher.create({ data: input });
+}
+
+export async function createPromo(input: PromoInput) {
+  await assertCodeFree(input.code);
+  return prisma.promo.create({ data: input });
+}
+
+export async function listAllVouchers() {
+  return prisma.voucher.findMany({ orderBy: { createdAt: "desc" } });
+}
+
+export async function listAllPromos() {
+  return prisma.promo.findMany({ orderBy: { createdAt: "desc" } });
+}
+
+export async function getVoucher(id: string) {
+  const voucher = await prisma.voucher.findUnique({ where: { id } });
+  if (!voucher) throw new ApiError(404, "Voucher tidak ditemukan");
+  return voucher;
+}
+
+export async function getPromo(id: string) {
+  const promo = await prisma.promo.findUnique({ where: { id } });
+  if (!promo) throw new ApiError(404, "Promo tidak ditemukan");
+  return promo;
+}
+
 /** Public list of currently usable vouchers and promos. */
 export async function listActiveDiscounts() {
   const now = await getVirtualNow();
