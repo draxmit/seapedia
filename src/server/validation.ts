@@ -69,6 +69,57 @@ export const productSchema = z.object({
   category: z.string().max(40).optional().or(z.literal("").transform(() => undefined)),
 });
 
+export const topUpSchema = z.object({
+  amount: z.coerce
+    .number()
+    .int("Nominal harus bilangan bulat rupiah")
+    .min(10_000, "Top up minimal Rp10.000")
+    .max(100_000_000, "Top up maksimal Rp100.000.000 per transaksi"),
+});
+
+export const addressSchema = z.object({
+  label: z.string().min(2, "Label minimal 2 karakter").max(30, "Label maksimal 30 karakter"),
+  recipient: z.string().min(2, "Nama penerima minimal 2 karakter").max(60),
+  phone: z
+    .string()
+    .regex(/^(\+62|62|0)8\d{7,11}$/, "Format nomor HP tidak valid (contoh: 081234567890)"),
+  street: z.string().min(5, "Alamat minimal 5 karakter").max(160),
+  city: z.string().min(2, "Kota wajib diisi").max(40),
+  province: z.string().min(2, "Provinsi wajib diisi").max(40),
+  postalCode: z.string().regex(/^\d{5}$/, "Kode pos harus 5 digit"),
+  isDefault: z.boolean().optional(),
+});
+
+export const cartAddSchema = z.object({
+  productId: z.string().min(1, "Produk wajib dipilih"),
+  quantity: z.coerce
+    .number()
+    .int("Jumlah harus bilangan bulat")
+    .min(1, "Jumlah minimal 1")
+    .max(999, "Jumlah maksimal 999"),
+});
+
+export const cartUpdateSchema = z.object({
+  quantity: z.coerce
+    .number()
+    .int("Jumlah harus bilangan bulat")
+    .min(1, "Jumlah minimal 1")
+    .max(999, "Jumlah maksimal 999"),
+});
+
+export const checkoutQuoteSchema = z.object({
+  deliveryMethod: z.enum(["INSTANT", "NEXT_DAY", "REGULAR"]),
+  discountCode: z
+    .string()
+    .max(30)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+});
+
+export const checkoutSchema = checkoutQuoteSchema.extend({
+  addressId: z.string().min(1, "Alamat pengiriman wajib dipilih"),
+});
+
 export const reviewSchema = z.object({
   name: z.string().min(2, "Nama minimal 2 karakter").max(60, "Nama maksimal 60 karakter"),
   rating: z.coerce
