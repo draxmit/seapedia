@@ -90,7 +90,7 @@ export default async function SellerIncomePage() {
                 <tbody>
                   {orders.map((o) => {
                     const income = o.subtotal - o.discountAmount;
-                    const counted = o.status === "PESANAN_SELESAI" && !o.incomeReversed;
+                    const counted = o.incomeCounted && !o.incomeReversed;
                     return (
                       <tr key={o.id} className="border-b border-ink-100 last:border-0 hover:bg-stone-50/60">
                         <td className="px-5 py-3">

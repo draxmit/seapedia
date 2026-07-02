@@ -17,9 +17,11 @@ export async function getFinancialSummary(userId: string, roles: RoleName[]) {
       : null,
     roles.includes("SELLER")
       ? prisma.order.aggregate({
+          // Income counts once a sale is completed and stays counted unless
+          // it is later reversed by an overdue refund.
           where: {
             store: { ownerId: userId },
-            status: "PESANAN_SELESAI",
+            incomeCounted: true,
             incomeReversed: false,
           },
           _sum: { subtotal: true, discountAmount: true },

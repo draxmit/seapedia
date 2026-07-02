@@ -196,7 +196,9 @@ async function refundOrder(orderId: string) {
       }
     }
 
-    // 3. Reverse seller income if it was already counted
+    // 3. Reverse seller income if it was already counted. (Reports gate
+    //    income on incomeCounted && !incomeReversed, so this flag is the
+    //    single source of truth for whether the sale still counts.)
     if (order.incomeCounted && !order.incomeReversed) {
       await tx.order.update({
         where: { id: order.id },
@@ -204,13 +206,23 @@ async function refundOrder(orderId: string) {
       });
     }
 
-    // 4. Cancel the delivery job so it disappears from driver boards
+    // 4. Return the consumed voucher slot (only vouchers have a quota). The
+    //    outer refund is idempotent, so this decrement runs at most once per
+    //    order; the gt:0 guard prevents underflow.
+    if (order.discountKind === "VOUCHER" && order.discountCode) {
+      await tx.voucher.updateMany({
+        where: { code: order.discountCode, usedCount: { gt: 0 } },
+        data: { usedCount: { decrement: 1 } },
+      });
+    }
+
+    // 5. Cancel the delivery job so it disappears from driver boards
     await tx.deliveryJob.updateMany({
       where: { orderId: order.id, status: { in: ["AVAILABLE", "TAKEN"] } },
       data: { status: "CANCELLED" },
     });
 
-    // 5. Visible trace in the status history
+    // 6. Visible trace in the status history
     await tx.orderStatusHistory.create({
       data: {
         orderId: order.id,

@@ -43,9 +43,7 @@ export async function getSellerReport(ownerId: string) {
     orderBy: { createdAt: "desc" },
   });
 
-  const completed = orders.filter(
-    (o) => o.status === "PESANAN_SELESAI" && !o.incomeReversed,
-  );
+  const completed = orders.filter((o) => o.incomeCounted && !o.incomeReversed);
   const reversed = orders.filter((o) => o.incomeReversed);
   const inProgress = orders.filter(
     (o) => !["PESANAN_SELESAI", "DIKEMBALIKAN"].includes(o.status),
