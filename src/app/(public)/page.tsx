@@ -7,6 +7,8 @@ import { ReviewForm } from "@/components/review/review-form";
 import { ReviewList } from "@/components/review/review-list";
 import { Stars } from "@/components/ui/star-rating";
 
+// Rendered per request (fast: catalog & review reads are served from the
+// cache-tagged data cache, so there is no per-request database round trip).
 export const dynamic = "force-dynamic";
 
 const roleHighlights = [

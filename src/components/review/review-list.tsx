@@ -10,7 +10,9 @@ export type PublicReview = {
   createdAt: Date;
 };
 
-function timeAgo(date: Date): string {
+function timeAgo(input: Date | string): string {
+  // Cached reads deliver dates as ISO strings, so coerce before using them.
+  const date = input instanceof Date ? input : new Date(input);
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return "baru saja";
   const minutes = Math.floor(seconds / 60);

@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Jelajahi Produk" };
+// Rendered per request; catalog reads are served from the cache-tagged data
+// cache, so there is no per-request database round trip.
 export const dynamic = "force-dynamic";
 
 type Search = { search?: string; category?: string; page?: string };

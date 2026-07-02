@@ -1,7 +1,9 @@
 import "server-only";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/server/api";
 import { sanitizeText } from "@/server/sanitize";
+import { CATALOG_TAG } from "@/server/services/product-service";
 import type { z } from "zod";
 import type { productSchema, storeSchema } from "@/server/validation";
 
@@ -65,7 +67,7 @@ export async function createStore(
   const name = sanitizeText(input.name);
   await assertStoreNameFree(name);
 
-  return prisma.store.create({
+  const store = await prisma.store.create({
     data: {
       ownerId,
       name,
@@ -74,6 +76,8 @@ export async function createStore(
       city: clean(input.city),
     },
   });
+  revalidateTag(CATALOG_TAG);
+  return store;
 }
 
 export async function updateStore(
@@ -85,7 +89,7 @@ export async function updateStore(
   const name = sanitizeText(input.name);
   await assertStoreNameFree(name, ownerId);
 
-  return prisma.store.update({
+  const updated = await prisma.store.update({
     where: { id: store.id },
     data: {
       name,
@@ -97,6 +101,8 @@ export async function updateStore(
       city: clean(input.city),
     },
   });
+  revalidateTag(CATALOG_TAG);
+  return updated;
 }
 
 // =========================== Products ===========================
@@ -136,7 +142,7 @@ export async function createProduct(
 ) {
   const store = await requireStore(ownerId);
   const name = sanitizeText(input.name);
-  return prisma.product.create({
+  const product = await prisma.product.create({
     data: {
       storeId: store.id,
       name,
@@ -148,6 +154,8 @@ export async function createProduct(
       category: clean(input.category),
     },
   });
+  revalidateTag(CATALOG_TAG);
+  return product;
 }
 
 export async function updateProduct(
@@ -157,7 +165,7 @@ export async function updateProduct(
 ) {
   const product = await requireOwnProduct(ownerId, productId);
   const name = sanitizeText(input.name);
-  return prisma.product.update({
+  const updated = await prisma.product.update({
     where: { id: product.id },
     data: {
       name,
@@ -172,6 +180,8 @@ export async function updateProduct(
       category: clean(input.category),
     },
   });
+  revalidateTag(CATALOG_TAG);
+  return updated;
 }
 
 /**
@@ -186,4 +196,5 @@ export async function deleteProduct(ownerId: string, productId: string) {
   });
   // Remove it from any open carts so buyers don't checkout a dead product
   await prisma.cartItem.deleteMany({ where: { productId: product.id } });
+  revalidateTag(CATALOG_TAG);
 }

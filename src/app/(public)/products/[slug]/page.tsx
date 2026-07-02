@@ -8,6 +8,8 @@ import { formatIDR } from "@/lib/money";
 import { AddToCart } from "@/components/product/add-to-cart";
 import { Badge } from "@/components/ui/badge";
 
+// Rendered per request; the product read is served from the cache-tagged
+// data cache, so there is no per-request database round trip.
 export const dynamic = "force-dynamic";
 
 export default async function ProductDetailPage({
