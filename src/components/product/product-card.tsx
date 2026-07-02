@@ -7,7 +7,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
   return (
     <Link
       href={`/products/${product.slug}`}
-      className="group overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-ink-950/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+      className="group overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-ink-950/[0.06] transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lift hover:ring-brand-600/15"
     >
       <div className="relative aspect-square overflow-hidden bg-ink-100">
         {product.imageUrl ? (
@@ -16,7 +16,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
             alt={product.name}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.07]"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-ink-300">
@@ -40,11 +40,11 @@ export function ProductCard({ product }: { product: PublicProduct }) {
           </span>
         )}
       </div>
-      <div className="p-3.5">
-        <h3 className="line-clamp-2 min-h-10 text-sm font-semibold text-ink-800 group-hover:text-brand-700">
+      <div className="p-4">
+        <h3 className="line-clamp-2 min-h-10 text-sm leading-snug font-medium text-ink-800 transition-colors group-hover:text-brand-700">
           {product.name}
         </h3>
-        <p className="mt-1.5 text-base font-extrabold tracking-tight text-ink-950">
+        <p className="tnum mt-2 text-[17px] font-extrabold text-ink-950">
           {formatIDR(product.price)}
         </p>
         <p className="mt-1.5 flex items-center gap-1 text-xs text-ink-500">

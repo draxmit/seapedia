@@ -5,7 +5,7 @@ type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 shadow-card",
+    "bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-card ring-1 ring-inset ring-brand-700/20 hover:from-brand-600 hover:to-brand-700",
   secondary:
     "bg-brand-50 text-brand-800 hover:bg-brand-100 active:bg-brand-200",
   outline:
@@ -34,7 +34,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl font-semibold transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50",
         variants[variant],
         sizes[size],
         className,
@@ -57,7 +57,7 @@ export function ButtonLink({
   return (
     <a
       className={cn(
-        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl font-semibold transition-colors duration-150",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 ease-out active:scale-[0.97]",
         variants[variant],
         sizes[size],
         className,

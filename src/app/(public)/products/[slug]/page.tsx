@@ -91,7 +91,7 @@ export default async function ProductDetailPage({
           <h1 className="mt-2 text-2xl leading-snug font-extrabold tracking-tight text-ink-950">
             {product.name}
           </h1>
-          <p className="mt-3 text-3xl font-extrabold tracking-tight text-brand-700">
+          <p className="tnum mt-3 text-3xl font-extrabold text-brand-700">
             {formatIDR(product.price)}
           </p>
 

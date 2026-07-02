@@ -30,9 +30,13 @@
   --color-ink-900: #353c40;
   --color-ink-950: #16211f;
 
-  --shadow-card: 0 1px 2px 0 rgb(22 33 31 / 0.05);
+  /* Layered, ink-tinted shadows for soft, elegant depth (not flat black) */
+  --shadow-card:
+    0 1px 2px -1px rgb(22 33 31 / 0.06), 0 2px 8px -3px rgb(22 33 31 / 0.05);
   --shadow-lift:
-    0 10px 24px -8px rgb(22 33 31 / 0.12), 0 2px 6px -2px rgb(22 33 31 / 0.06);
+    0 1px 2px -1px rgb(22 33 31 / 0.06),
+    0 14px 30px -10px rgb(6 78 59 / 0.14),
+    0 4px 10px -4px rgb(22 33 31 / 0.07);
 }
 
 html {
@@ -42,6 +46,23 @@ html {
 body {
   @apply bg-stone-50 text-ink-900 antialiased;
   text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Display headings: tighter optical tracking + balanced wrapping */
+h1,
+h2 {
+  letter-spacing: -0.018em;
+  text-wrap: balance;
+}
+h3 {
+  text-wrap: balance;
+}
+
+/* Prices and figures read cleaner with lining, tabular numerals */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
@@ -54,4 +75,15 @@ body {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Subtle grain to give large surfaces tactile depth (no flat vectors) */
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
 }

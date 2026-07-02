@@ -57,7 +57,7 @@ export default async function ProductsPage({
 
       {/* Category chips */}
       {categories.length > 0 && (
-        <div className="scrollbar-none mt-5 flex gap-2 overflow-x-auto pb-1">
+        <div className="scrollbar-none mt-5 -mx-1 flex gap-2 overflow-x-auto px-1 py-2">
           <CategoryChip
             href={`/products${buildQuery(params, { category: undefined, page: undefined })}`}
             active={!params.category}
@@ -131,10 +131,10 @@ function CategoryChip({
     <Link
       href={href}
       className={cn(
-        "shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
+        "shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
         active
-          ? "bg-brand-600 text-white shadow-card"
-          : "bg-white text-ink-600 ring-1 ring-ink-200 hover:text-brand-700 hover:ring-brand-300",
+          ? "bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-lift ring-1 ring-brand-700/20"
+          : "bg-white text-ink-600 ring-1 ring-ink-200 hover:-translate-y-0.5 hover:text-brand-700 hover:ring-brand-300 hover:shadow-card",
       )}
     >
       {children}

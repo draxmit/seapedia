@@ -89,7 +89,7 @@ export default async function LandingPage() {
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-brand-50/80 via-white to-stone-50">
+      <section className="grain relative overflow-hidden bg-gradient-to-b from-brand-50/80 via-white to-stone-50">
         <div
           className="pointer-events-none absolute inset-0 opacity-40"
           style={{
