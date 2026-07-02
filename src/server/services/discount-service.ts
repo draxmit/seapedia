@@ -1,5 +1,5 @@
 import "server-only";
-import type { DiscountKind, DiscountValueType } from "@prisma/client";
+import { Prisma, type DiscountKind, type DiscountValueType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/server/api";
 import { getVirtualNow } from "@/lib/time";
@@ -43,6 +43,14 @@ export async function resolveDiscount(
     prisma.voucher.findUnique({ where: { code: normalized } }),
     prisma.promo.findUnique({ where: { code: normalized } }),
   ]);
+
+  // A code is meant to identify exactly one discount. If it somehow exists as
+  // both a voucher and a promo, fail loudly instead of silently applying the
+  // voucher and shadowing the promo. createVoucher/createPromo prevent this,
+  // but this guard keeps a bad state from mis-charging a checkout.
+  if (voucher && promo) {
+    throw new ApiError(409, "Kode discount tidak valid, hubungi admin");
+  }
 
   if (voucher) {
     if (voucher.expiresAt < now) {
@@ -105,22 +113,39 @@ type VoucherInput = {
 
 type PromoInput = Omit<VoucherInput, "maxUsage">;
 
-async function assertCodeFree(code: string) {
+/**
+ * A discount code must be unique ACROSS both tables (a voucher and a promo
+ * cannot share a code, or resolveDiscount could no longer identify one). The
+ * per-table @unique constraints don't cover the cross-table case, so we check
+ * both tables inside a Serializable transaction — concurrent creates of the
+ * same code then conflict and one aborts instead of both slipping through.
+ */
+async function assertCodeFree(tx: Prisma.TransactionClient, code: string) {
   const [v, p] = await Promise.all([
-    prisma.voucher.findUnique({ where: { code } }),
-    prisma.promo.findUnique({ where: { code } }),
+    tx.voucher.findUnique({ where: { code } }),
+    tx.promo.findUnique({ where: { code } }),
   ]);
   if (v || p) throw new ApiError(409, "Kode sudah digunakan voucher/promo lain");
 }
 
 export async function createVoucher(input: VoucherInput) {
-  await assertCodeFree(input.code);
-  return prisma.voucher.create({ data: input });
+  return prisma.$transaction(
+    async (tx) => {
+      await assertCodeFree(tx, input.code);
+      return tx.voucher.create({ data: input });
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 export async function createPromo(input: PromoInput) {
-  await assertCodeFree(input.code);
-  return prisma.promo.create({ data: input });
+  return prisma.$transaction(
+    async (tx) => {
+      await assertCodeFree(tx, input.code);
+      return tx.promo.create({ data: input });
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 export async function listAllVouchers() {
