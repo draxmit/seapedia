@@ -63,6 +63,9 @@ export function CheckoutClient({
   const [codeError, setCodeError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [available, setAvailable] = useState<
+    { code: string; name: string; kind: "VOUCHER" | "PROMO" }[]
+  >([]);
 
   const refreshQuote = useCallback(
     async (m: DeliveryMethod, code?: string) => {
@@ -92,6 +95,18 @@ export function CheckoutClient({
 
   useEffect(() => {
     refreshQuote(method, appliedCode);
+    fetch("/api/v1/discounts")
+      .then((r) => r.json())
+      .then((body) => {
+        const v = (body.data?.vouchers ?? []).map(
+          (x: { code: string; name: string }) => ({ ...x, kind: "VOUCHER" as const }),
+        );
+        const p = (body.data?.promos ?? []).map(
+          (x: { code: string; name: string }) => ({ ...x, kind: "PROMO" as const }),
+        );
+        setAvailable([...v, ...p]);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -258,6 +273,29 @@ export function CheckoutClient({
             <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               {codeError}
             </p>
+          )}
+          {!quote?.discount && available.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-ink-500">Kode yang tersedia:</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {available.map((d) => (
+                  <button
+                    key={d.code}
+                    type="button"
+                    onClick={() => refreshQuote(method, d.code)}
+                    title={d.name}
+                    className={cn(
+                      "cursor-pointer rounded-full px-3 py-1 text-xs font-bold ring-1 transition-colors",
+                      d.kind === "VOUCHER"
+                        ? "bg-brand-50 text-brand-800 ring-brand-600/20 hover:bg-brand-100"
+                        : "bg-violet-50 text-violet-800 ring-violet-600/20 hover:bg-violet-100",
+                    )}
+                  >
+                    {d.code}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </section>
 
