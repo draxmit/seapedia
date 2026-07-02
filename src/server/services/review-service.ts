@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { sanitizeText } from "@/server/sanitize";
 import type { z } from "zod";
 import type { reviewSchema } from "@/server/validation";
 
@@ -32,9 +33,9 @@ export async function createAppReview(
 ) {
   return prisma.appReview.create({
     data: {
-      name: input.name,
+      name: sanitizeText(input.name),
       rating: input.rating,
-      comment: input.comment,
+      comment: sanitizeText(input.comment),
       userId: userId ?? null,
     },
   });

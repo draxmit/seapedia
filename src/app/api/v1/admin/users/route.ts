@@ -7,6 +7,10 @@ export const GET = handle(async () => {
   const users = await listUsersAdmin();
   // Strip password hashes from the payload
   return jsonOk(
-    users.map(({ passwordHash: _ph, ...user }) => user),
+    users.map((u) => {
+      const { passwordHash, ...user } = u;
+      void passwordHash;
+      return user;
+    }),
   );
 });

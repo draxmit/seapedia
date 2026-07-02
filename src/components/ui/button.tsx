@@ -55,7 +55,6 @@ export function ButtonLink({
   size?: Size;
 }) {
   return (
-    // eslint-disable-next-line jsx-a11y/anchor-has-content
     <a
       className={cn(
         "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl font-semibold transition-colors duration-150",
