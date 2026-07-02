@@ -32,6 +32,43 @@ export const activeRoleSchema = z.object({
   role: z.enum(["ADMIN", "SELLER", "BUYER", "DRIVER"]),
 });
 
+export const storeSchema = z.object({
+  name: z
+    .string()
+    .min(3, "Nama toko minimal 3 karakter")
+    .max(40, "Nama toko maksimal 40 karakter"),
+  description: z.string().max(300, "Deskripsi maksimal 300 karakter").optional(),
+  city: z.string().max(40, "Nama kota maksimal 40 karakter").optional(),
+});
+
+export const productSchema = z.object({
+  name: z
+    .string()
+    .min(3, "Nama produk minimal 3 karakter")
+    .max(80, "Nama produk maksimal 80 karakter"),
+  description: z
+    .string()
+    .min(10, "Deskripsi minimal 10 karakter")
+    .max(2000, "Deskripsi maksimal 2000 karakter"),
+  price: z.coerce
+    .number()
+    .int("Harga harus bilangan bulat rupiah")
+    .min(500, "Harga minimal Rp500")
+    .max(1_000_000_000, "Harga maksimal Rp1.000.000.000"),
+  stock: z.coerce
+    .number()
+    .int("Stok harus bilangan bulat")
+    .min(0, "Stok tidak boleh negatif")
+    .max(1_000_000, "Stok terlalu besar"),
+  imageUrl: z
+    .string()
+    .url("URL gambar tidak valid")
+    .startsWith("https://", "Gunakan URL https")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  category: z.string().max(40).optional().or(z.literal("").transform(() => undefined)),
+});
+
 export const reviewSchema = z.object({
   name: z.string().min(2, "Nama minimal 2 karakter").max(60, "Nama maksimal 60 karakter"),
   rating: z.coerce
