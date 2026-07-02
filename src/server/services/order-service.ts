@@ -3,7 +3,7 @@ import type { DeliveryMethod, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/server/api";
 import { DELIVERY_FEES, PPN_RATE, SLA_DAYS } from "@/lib/constants";
-import { getCurrentVirtualDay } from "@/lib/time";
+import { dayNumber, getVirtualNow } from "@/lib/time";
 import { resolveDiscount, type ResolvedDiscount } from "@/server/services/discount-service";
 
 /**
@@ -83,12 +83,14 @@ export async function checkout(
     discountCode?: string;
   },
 ) {
-  const currentDay = await getCurrentVirtualDay();
+  const now = await getVirtualNow();
+  const currentDay = dayNumber(now);
 
   // Pre-transaction reads: cart contents, address ownership, and discount
-  // validation. The mutations below re-verify everything with conditional
-  // updates, so a stale read here can only cause a clean failure, never a
-  // wrong charge.
+  // validation. These are only for early, friendly errors — every mutation
+  // inside the transaction re-verifies with a conditional guard, and the
+  // cart itself is claimed atomically so a single cart can be checked out
+  // exactly once even under concurrent requests.
   const cart = await prisma.cart.findUnique({
     where: { userId },
     include: {
@@ -126,6 +128,19 @@ export async function checkout(
 
   return prisma.$transaction(
     async (tx) => {
+      // ---- Claim the cart: the single serialization point ----
+      // A "loaded" cart has storeId set. This conditional update flips it to
+      // null and is the winner-takes-all guard: two concurrent checkouts of
+      // the same cart contend on this row, so the loser gets count 0 and a
+      // clean 409 — no duplicate order, double charge, or double stock hit.
+      const claimed = await tx.cart.updateMany({
+        where: { id: cart.id, storeId: { not: null } },
+        data: { storeId: null },
+      });
+      if (claimed.count === 0) {
+        throw new ApiError(409, "Keranjang sedang diproses atau sudah kosong");
+      }
+
       // ---- Stock: conditional decrement, never negative ----
       for (const item of cart.items) {
         if (item.product.deletedAt) {
@@ -140,17 +155,27 @@ export async function checkout(
         }
       }
 
-      // ---- Voucher quota: consumed atomically with a usage guard ----
+      // ---- Discount: re-validate expiry inside the transaction ----
+      // Expiry uses the simulated clock, which an admin can advance between
+      // quote time and commit, so it must be re-checked here (not only in the
+      // earlier resolveDiscount call).
       if (discount?.kind === "VOUCHER") {
+        // Quota + expiry guarded together in one atomic conditional update
         const consumed = await tx.voucher.updateMany({
           where: {
             code: discount.code,
             usedCount: { lt: prisma.voucher.fields.maxUsage },
+            expiresAt: { gte: now },
           },
           data: { usedCount: { increment: 1 } },
         });
         if (consumed.count === 0) {
-          throw new ApiError(400, "Kuota penggunaan voucher sudah habis");
+          throw new ApiError(400, "Voucher sudah kedaluwarsa atau kuotanya habis");
+        }
+      } else if (discount?.kind === "PROMO") {
+        const promo = await tx.promo.findUnique({ where: { code: discount.code } });
+        if (!promo || promo.expiresAt < now) {
+          throw new ApiError(400, "Promo sudah berakhir");
         }
       }
 
@@ -222,15 +247,14 @@ export async function checkout(
         },
       });
 
-      // ---- Empty the cart ----
+      // ---- Empty the cart (storeId was already nulled by the claim) ----
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-      await tx.cart.update({ where: { id: cart.id }, data: { storeId: null } });
 
       return order;
     },
-    // Generous timeout: the hosted dev database sits in another region and
-    // each round trip costs real latency. Correctness never depends on the
-    // isolation level here — every mutation carries its own guard.
+    // Generous timeout: a hosted database in another region adds real latency
+    // per round trip. Correctness does not depend on the isolation level —
+    // every mutation carries its own guard and the cart claim serializes.
     { timeout: 30_000, maxWait: 10_000 },
   );
 }
