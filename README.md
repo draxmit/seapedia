@@ -8,6 +8,9 @@ operations. Built as a full-stack Next.js application with an API-first backend.
 > Driver — choosing an active role per session — while authorization always
 > follows the **active** role, not merely the roles owned.
 
+**🚀 Live demo:** https://seapedia-one.vercel.app · **📚 API docs:** https://seapedia-one.vercel.app/api-docs
+Log in with any [demo account](#demo-accounts) (password `seapedia123`).
+
 ---
 
 ## Table of Contents
@@ -380,5 +383,6 @@ Postgres + Vercel deployment:
 3. `npx prisma migrate deploy && npx prisma db seed` against the production DB.
 4. Deploy (`vercel --prod` or your platform's flow).
 
-The live deployment URL, if provisioned, is listed at the top of this section
-when available.
+**This project is deployed live at https://seapedia-one.vercel.app** (Vercel +
+hosted PostgreSQL). The deployment is seeded with the same demo data described
+above, so every flow can be tested immediately with the demo accounts.
