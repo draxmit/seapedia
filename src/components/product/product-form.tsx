@@ -79,7 +79,7 @@ export function ProductForm({
   const previewUrl = form.imageUrl.startsWith("https://") ? form.imageUrl : null;
 
   return (
-    <form onSubmit={submit} className="grid max-w-3xl gap-6 lg:grid-cols-[1fr_16rem]">
+    <form onSubmit={submit} noValidate className="grid max-w-3xl gap-6 lg:grid-cols-[1fr_16rem]">
       <div className="space-y-5">
         <Field label="Nama Produk" htmlFor="p-name">
           <Input

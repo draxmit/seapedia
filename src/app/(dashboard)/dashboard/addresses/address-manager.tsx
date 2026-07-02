@@ -98,6 +98,7 @@ export function AddressManager({ addresses }: { addresses: AddressDto[] }) {
       {editing !== null && (
         <form
           onSubmit={save}
+          noValidate
           className="space-y-4 rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-950/5"
         >
           <h3 className="font-bold text-ink-900">

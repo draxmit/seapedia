@@ -55,8 +55,16 @@ export function RegisterForm() {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
-    if (roles.length === 0) {
-      setFieldErrors({ roles: "Pilih minimal satu peran" });
+
+    // Client-side required checks give instant, styled feedback (no native popup)
+    const missing: Record<string, string> = {};
+    if (!form.name.trim()) missing.name = "Nama wajib diisi";
+    if (!form.username.trim()) missing.username = "Username wajib diisi";
+    if (!form.email.trim()) missing.email = "Email wajib diisi";
+    if (!form.password) missing.password = "Password wajib diisi";
+    if (roles.length === 0) missing.roles = "Pilih minimal satu peran";
+    if (Object.keys(missing).length > 0) {
+      setFieldErrors(missing);
       return;
     }
     setBusy(true);
@@ -86,7 +94,7 @@ export function RegisterForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} noValidate className="space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Nama Lengkap" htmlFor="name" error={fieldErrors.name}>
           <Input

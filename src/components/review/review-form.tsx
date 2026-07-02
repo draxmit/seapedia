@@ -70,7 +70,7 @@ export function ReviewForm({ defaultName }: { defaultName?: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} noValidate className="space-y-4">
       <Field label="Nama" htmlFor="review-name">
         <Input
           id="review-name"

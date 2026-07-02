@@ -16,9 +16,17 @@ export function LoginForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
     setFieldErrors({});
+
+    const missing: Record<string, string> = {};
+    if (!identifier.trim()) missing.identifier = "Username atau email wajib diisi";
+    if (!password) missing.password = "Password wajib diisi";
+    if (Object.keys(missing).length > 0) {
+      setFieldErrors(missing);
+      return;
+    }
+    setBusy(true);
     try {
       const res = await fetch("/api/v1/auth/login", {
         method: "POST",
@@ -51,7 +59,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} noValidate className="space-y-5">
       <Field label="Username atau Email" htmlFor="identifier" error={fieldErrors.identifier}>
         <Input
           id="identifier"

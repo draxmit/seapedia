@@ -44,7 +44,7 @@ export function TopUpForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} noValidate className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
         {QUICK_AMOUNTS.map((v) => (
           <button

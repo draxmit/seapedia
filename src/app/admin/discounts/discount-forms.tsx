@@ -85,6 +85,7 @@ export function DiscountForms() {
   return (
     <form
       onSubmit={submit}
+      noValidate
       className="space-y-4 rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-950/5"
     >
       <div className="flex items-center justify-between">

@@ -43,7 +43,7 @@ export function StoreForm({ initial }: { initial: StoreInput | null }) {
   }
 
   return (
-    <form onSubmit={submit} className="max-w-xl space-y-5">
+    <form onSubmit={submit} noValidate className="max-w-xl space-y-5">
       <Field
         label="Nama Toko"
         htmlFor="store-name"
